@@ -1,0 +1,96 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+}
+
+.image-wrapper {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    margin: 20px auto;
+    overflow: hidden;
+}
+
+.image-wrapper img {
+    display: block;
+    max-width: 100%;
+}
+
+.magnifier-icon {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.magnifier-icon:hover {
+    background-color: rgba(0, 0, 0, 0.7);
+}
+
+.magnifier-icon svg {
+    width: 20px;
+    height: 20px;
+    fill: white;
+}
+
+.fullscreen-view {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 1.0);
+    z-index: 1000;
+    display: none;
+    overflow: hidden;
+    cursor: grab;
+}
+
+.fullscreen-image-container {
+    position: absolute;
+    cursor: grab;
+}
+
+.fullscreen-image-container img {
+    display: block;
+    max-width: none;
+}
+
+.close-icon {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    z-index: 1001;
+    transition: all 0.2s ease;
+}
+
+.close-icon:hover {
+    background-color: rgba(0, 0, 0, 0.7);
+}
+
+.close-icon svg {
+    width: 24px;
+    height: 24px;
+    fill: white;
+}
+
+.grabbing {
+    cursor: grabbing !important;
+}
