@@ -9,6 +9,8 @@ document.addEventListener( 'DOMContentLoaded', function () {
 		const m = matrix;             // alias
 		const pos = { x: 0, y: 0 };   // current position of origin
 		const API = {
+			pos,
+			dirty,
 			applyTo ( element ) {
 				dirty && this.update();
 				element.style.transform = `matrix(${ m.join( `,` ) })`;
@@ -179,8 +181,8 @@ document.addEventListener( 'DOMContentLoaded', function () {
 		const centerY = ( viewportHeight - scaledHeight ) / 2;
 
 		// Set the position directly
-		pos.x = centerX;
-		pos.y = centerY;
+		view.pos.x = centerX;
+		view.pos.y = centerY;
 		dirty = true;
 
 		// Apply the transformation
