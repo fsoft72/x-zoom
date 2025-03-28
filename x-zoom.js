@@ -1,6 +1,8 @@
 document.addEventListener( 'DOMContentLoaded', function () {
 	var zoomMe = null;
 	var fullscreenView, fullscreenImageContainer, fullscreenImage;
+    
+    console.log ( "=== X-ZOOM Starting" );
 
 	const view = ( () => {
 		var dirty = true;             // If true transform matrix needs to update
@@ -9,8 +11,6 @@ document.addEventListener( 'DOMContentLoaded', function () {
 		const m = matrix;             // alias
 		const pos = { x: 0, y: 0 };   // current position of origin
 		const API = {
-			pos,
-			dirty,
 			applyTo ( element ) {
 				dirty && this.update();
 				element.style.transform = `matrix(${ m.join( `,` ) })`;
@@ -181,9 +181,9 @@ document.addEventListener( 'DOMContentLoaded', function () {
 		const centerY = ( viewportHeight - scaledHeight ) / 2;
 
 		// Set the position directly
-		view.pos.x = centerX;
-		view.pos.y = centerY;
-		dirty = true;
+        view.pos.x = centerX;
+        view.pos.y = centerY;
+        view.dirty = true;
 
 		// Apply the transformation
 		view.update();
