@@ -4,7 +4,7 @@ document.addEventListener( 'DOMContentLoaded', function () {
     
     console.log ( "=== X-ZOOM Starting" );
 
-	const view = ( () => {
+const view = ( () => {
 		var dirty = true;             // If true transform matrix needs to update
 		var scale = 1;                // current scale
 		const matrix = [ 1, 0, 0, 1, 0, 0 ]; // current view transform
@@ -22,6 +22,18 @@ document.addEventListener( 'DOMContentLoaded', function () {
 				m[ 4 ] = pos.x;
 				m[ 5 ] = pos.y;
 			},
+            // Add this method to directly set the scale
+            setScale ( newScale ) {
+                scale = newScale;
+                dirty = true;
+            },
+            setPos ( x, y ) {
+                // Ensure this sets the position absolutely, not relatively
+                // (which it already does)
+                pos.x = x;
+                pos.y = y;
+                dirty = true;
+            },
 			pan ( amount ) {
 				pos.x += amount.x;
 				pos.y += amount.y;
@@ -38,7 +50,7 @@ document.addEventListener( 'DOMContentLoaded', function () {
 				pos.x = 0;
 				pos.y = 0;
 				dirty = true;
-				this.update();
+				this.update(); // Keep update here for immediate reset effect if needed elsewhere
 			}
 		};
 		return API;
@@ -112,7 +124,7 @@ document.addEventListener( 'DOMContentLoaded', function () {
 		}
 	} );
 
-	const startZoom = ( img ) => {
+const startZoom = ( img ) => {
 		console.log( "=== START ZOOM: ", img );
 
 		createFullScreenView();
@@ -120,16 +132,33 @@ document.addEventListener( 'DOMContentLoaded', function () {
 		// Use the clicked image's source for the fullscreen view
 		fullscreenImage.src = img.src;
 		fullscreenImage.alt = img.alt;
+
+        // --- ADD THIS LINE ---
+        fullscreenImage.style.transformOrigin = '0 0';
+        // --- END ADD ---
+
 		// Open fullscreen view
 		fullscreenView.style.display = 'block';
-		zoomMe = fullscreenImage;
+		zoomMe = fullscreenImage; // Assign to zoomMe *before* onload potentially fires
 
-		// Calculate and set initial scale after image is loaded
+		// Define onload handler before setting src potentially triggers it immediately from cache
 		fullscreenImage.onload = function () {
+            console.log("fullscreenImage onload triggered.");
 			setInitialZoomScale();
 		};
-		// Also try to set scale immediately in case image is already cached
-		setInitialZoomScale();
+        // Ensure src is set *after* onload is defined, especially for cached images
+        // (Though setting it earlier is usually fine, this is safer)
+        // fullscreenImage.src = img.src; // Moved up, should be okay, but keep in mind
+
+		// If the image is already loaded/cached, onload might not fire reliably
+        // Call setInitialZoomScale directly *if* complete flag is true
+		if (fullscreenImage.complete) {
+            console.log("fullscreenImage already complete, calling initial scale.");
+			setInitialZoomScale();
+		} else {
+            console.log("fullscreenImage not complete, waiting for onload.");
+        }
+
 
 		// Mouse event listeners
 		document.addEventListener( "mousemove", mouseEvent, { passive: false } );
@@ -147,7 +176,15 @@ document.addEventListener( 'DOMContentLoaded', function () {
 
 	// Calculate optimal scale to fit image in viewport
 	const setInitialZoomScale = () => {
-		if ( !zoomMe || !zoomMe.complete ) return;
+		if ( !zoomMe || !zoomMe.complete || zoomMe.naturalWidth === 0 || zoomMe.naturalHeight === 0 ) {
+            // If image not loaded or has no dimensions, maybe try again shortly?
+            // Or just don't apply any transform yet.
+            console.warn("Initial zoom: Image not ready or has zero dimensions.");
+            // Optionally reset view to default state if needed
+            // view.reset();
+            // view.applyTo(zoomMe);
+            return;
+        }
 
 		// Get viewport dimensions
 		const viewportWidth = window.innerWidth;
@@ -157,38 +194,46 @@ document.addEventListener( 'DOMContentLoaded', function () {
 		const imageWidth = zoomMe.naturalWidth;
 		const imageHeight = zoomMe.naturalHeight;
 
-		if ( imageWidth === 0 || imageHeight === 0 ) return;
-
 		// Calculate scale factors for width and height
-		const scaleX = ( viewportWidth * 1.0 ) / imageWidth;
-		const scaleY = ( viewportHeight * 1.0 ) / imageHeight;
+		const scaleX = viewportWidth / imageWidth;   // Removed unnecessary * 1.0
+		const scaleY = viewportHeight / imageHeight; // Removed unnecessary * 1.0
 
 		// Use the smaller scale to ensure image fits completely
 		const initialScale = Math.min( scaleX, scaleY );
 
-		// Reset view first to clear any previous transformations
-		view.reset();
-
-		// Set scale directly without affecting position
-		// scale = initialScale;
-
-		// Calculate the center position after scaling
+		// Calculate the dimensions of the image *after* scaling
 		const scaledWidth = imageWidth * initialScale;
 		const scaledHeight = imageHeight * initialScale;
 
-		// Calculate the position to center the image
+		// Calculate the top-left position (offset) to center the scaled image
 		const centerX = ( viewportWidth - scaledWidth ) / 2;
 		const centerY = ( viewportHeight - scaledHeight ) / 2;
 
-		// Set the position directly
-        view.pos.x = centerX;
-        view.pos.y = centerY;
-        view.dirty = true;
+        // --- Correction Start ---
+        // 1. Reset is okay, but we will overwrite its effects immediately.
+        //    Consider removing the update() inside reset() if it causes issues,
+        //    but it should be fine here.
+		view.reset(); // Sets scale=1, pos=(0,0), matrix=[1,0,0,1,0,0]
 
-		// Apply the transformation
-		view.update();
-		view.applyTo( zoomMe );
+        // 2. Set the *target* scale directly
+        view.setScale(initialScale); // Sets view's internal scale, marks dirty
 
+        // 3. Set the *target* position directly
+        view.setPos(centerX, centerY); // Sets view's internal pos, marks dirty
+
+        // 4. Update the matrix and apply the transform
+        //    view.update() will now use initialScale and the correct centerX, centerY
+        view.applyTo( zoomMe ); // Calls update() because dirty is true, then applies style
+        // --- Correction End ---
+
+        // Log the calculated values for verification
+        console.log("Initial Zoom Calculated:", {
+            viewportWidth, viewportHeight,
+            imageWidth, imageHeight,
+            scaleX, scaleY, initialScale,
+            scaledWidth, scaledHeight,
+            centerX, centerY
+        });
 	};
 
 	const stopZoom = () => {
@@ -256,11 +301,12 @@ document.addEventListener( 'DOMContentLoaded', function () {
 	function mouseWheelEvent ( event ) {
 		if ( !zoomMe ) return;
 
-		const x = event.pageX - ( zoomMe.width / 2 );
-		const y = event.pageY - ( zoomMe.height / 2 );
-		const scaleBy = event.deltaY < 0 ? 1.1 : 1 / 1.1;
+        // Use page coordinates directly as the zoom point
+		const x = event.pageX;
+		const y = event.pageY;
+		const scaleBy = event.deltaY < 0 ? 1.1 : 1 / 1.1; // Keep scale direction consistent
 
-		handleZoom( x, y, scaleBy );
+		handleZoom( x, y, scaleBy ); // handleZoom calls view.scaleAt
 		event.preventDefault();
 	}
 
@@ -270,7 +316,7 @@ document.addEventListener( 'DOMContentLoaded', function () {
 
 		// Save old touch points
 		touch.oldPoints = [ ...touch.points ];
-		touch.oldPinchDistance = touch.pinchDistance;
+		// touch.oldPinchDistance = touch.pinchDistance; // This was potentially missing, recalculate below
 
 		// Update current touch points
 		touch.points = [];
@@ -285,6 +331,14 @@ document.addEventListener( 'DOMContentLoaded', function () {
 		switch ( event.type ) {
 			case 'touchstart':
 				touch.active = true;
+                // Reset pinch distance on new touch start
+				touch.pinchDistance = 0;
+                if(touch.points.length >= 2) {
+                    touch.pinchDistance = getDistance(
+						touch.points[ 0 ].x, touch.points[ 0 ].y,
+						touch.points[ 1 ].x, touch.points[ 1 ].y
+					);
+                }
 				break;
 
 			case 'touchmove':
@@ -292,50 +346,74 @@ document.addEventListener( 'DOMContentLoaded', function () {
 
 				// Handle pinch-to-zoom with two fingers
 				if ( touch.points.length >= 2 && touch.oldPoints.length >= 2 ) {
-					// Calculate pinch distance
+					// Calculate current pinch distance
 					const currentDistance = getDistance(
 						touch.points[ 0 ].x, touch.points[ 0 ].y,
 						touch.points[ 1 ].x, touch.points[ 1 ].y
 					);
 
+                    // Calculate previous pinch distance using old points
 					const previousDistance = getDistance(
 						touch.oldPoints[ 0 ].x, touch.oldPoints[ 0 ].y,
 						touch.oldPoints[ 1 ].x, touch.oldPoints[ 1 ].y
 					);
 
-					// Calculate center point of the pinch
+					// Calculate center point of the current pinch in screen coordinates
 					const centerX = ( touch.points[ 0 ].x + touch.points[ 1 ].x ) / 2;
 					const centerY = ( touch.points[ 0 ].y + touch.points[ 1 ].y ) / 2;
 
 					// Calculate scale factor
-					if ( previousDistance > 0 ) {
+					if ( previousDistance > 0 ) { // Avoid division by zero
 						const scaleFactor = currentDistance / previousDistance;
-						if ( Math.abs( 1 - scaleFactor ) > 0.01 ) {
-							const zoomX = centerX - ( zoomMe.width / 2 );
-							const zoomY = centerY - ( zoomMe.height / 2 );
-							handleZoom( zoomX, zoomY, scaleFactor );
+                        // Apply zoom if scale factor is significant enough to avoid jitter
+						if ( Math.abs( 1 - scaleFactor ) > 0.005 ) { // Adjust threshold as needed
+                            // Use screen coordinates (centerX, centerY) directly for scaling point
+							handleZoom( centerX, centerY, scaleFactor );
 						}
 					}
 
-					touch.pinchDistance = currentDistance;
+					// Update pinch distance for the next move event
+					touch.pinchDistance = currentDistance; // Update stored distance
 				}
-				// Handle pan with one finger
-				else if ( touch.points.length === 1 && touch.oldPoints.length === 1 ) {
-					const deltaX = touch.points[ 0 ].x - touch.oldPoints[ 0 ].x;
-					const deltaY = touch.points[ 0 ].y - touch.oldPoints[ 0 ].y;
+				// Handle pan with one finger (or move of the multi-touch centroid)
+				// Check if oldPoints exist to calculate delta
+				else if ( touch.points.length >= 1 && touch.oldPoints.length >= 1 ) {
+				    // Use the first touch point for simplicity in the 1-finger case
+                    // For multi-finger pan, one could use the centroid movement
+                    const currentX = touch.points[0].x;
+                    const currentY = touch.points[0].y;
+                    const previousX = touch.oldPoints[0].x;
+                    const previousY = touch.oldPoints[0].y;
+
+					const deltaX = currentX - previousX;
+					const deltaY = currentY - previousY;
 					handlePan( deltaX, deltaY );
 				}
 				break;
 
 			case 'touchend':
 			case 'touchcancel':
-				touch.active = false;
-				touch.pinchDistance = 0;
-				touch.oldPinchDistance = 0;
+                // If less than 2 touches remain, clear pinch state
+                if(event.touches.length < 2) {
+                    touch.pinchDistance = 0;
+                }
+                // If no touches remain, deactivate
+				if (event.touches.length === 0) {
+                    touch.active = false;
+                }
+                // Update points array to reflect remaining touches accurately for next 'move'
+                touch.points = [];
+                for ( let i = 0; i < event.touches.length; i++ ) {
+                    touch.points.push( {
+                        x: event.touches[ i ].pageX,
+                        y: event.touches[ i ].pageY
+                    } );
+                }
 				break;
 		}
 	}
 
+	
 	// Helper function to calculate distance between two points
 	function getDistance ( x1, y1, x2, y2 ) {
 		return Math.sqrt( Math.pow( x2 - x1, 2 ) + Math.pow( y2 - y1, 2 ) );
